@@ -270,3 +270,47 @@ def export(sport, fmt, output):
         console.print(f"[bold {PRIMARY}]✓[/] Exported to [cyan]{output}[/cyan]")
     else:
         console.print(out)
+
+
+# ── Multi-Agent Swarm ────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--cycles", type=int, default=1, help="Number of swarm cycles to run")
+@click.option("--delay", type=float, default=0, help="Delay between cycles (seconds)")
+@click.option("--sports", default="nba,nfl,mlb,nhl,soccer", help="Comma-separated sports")
+@click.option("--max-bets", type=int, default=3, help="Max bets per cycle")
+@click.option("--no-dashboard", is_flag=True, help="Skip dashboard display")
+def swarm(cycles, delay, sports, max_bets, no_dashboard):
+    """🐝 Launch multi-agent AI swarm — 12 bots competing & cooperating."""
+    from betbot.agents.coordinator import SwarmCoordinator
+    coord = SwarmCoordinator()
+    coord.run(
+        cycles=cycles, delay=delay,
+        context={
+            "sports": [s.strip() for s in sports.split(",")],
+            "max_bets_per_cycle": max_bets,
+            "auto_settle": True,
+            "auto_export": True,
+        },
+        show_dashboard=not no_dashboard,
+    )
+
+
+@cli.command()
+def leaderboard():
+    """🏆 Show agent competition leaderboard."""
+    from betbot.agents.base import Leaderboard
+    board = Leaderboard()
+    if not board.scores:
+        console.print("[dim]No agent data yet. Run 'betbot swarm' first.[/dim]")
+        return
+    board.display()
+
+
+@cli.command("swarm-reset")
+def swarm_reset():
+    """🔄 Reset all agent scores and leaderboard."""
+    from betbot.agents.coordinator import SwarmCoordinator
+    coord = SwarmCoordinator()
+    coord.reset()
+    console.print(f"[bold {PRIMARY}]✓[/] Swarm leaderboard and bus reset")
