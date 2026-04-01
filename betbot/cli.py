@@ -445,3 +445,119 @@ def logs():
             console.print(f"[bold {PRIMARY}]{line}[/bold {PRIMARY}]")
         else:
             console.print(f"[dim]{line}[/dim]")
+
+
+# ── Profit Tracker ────────────────────────────────────────────────────────────
+
+@cli.command()
+def profits():
+    """💰 Show profit summary, withdrawal status, and daily targets."""
+    from betbot.profit_tracker import ProfitTracker
+    from rich.panel import Panel
+    from rich.table import Table
+
+    tracker = ProfitTracker()
+    s = tracker.summary()
+
+    # Main profit panel
+    profit_color = "green" if s["lifetime_profit"] >= 0 else "red"
+    pending_color = "green" if s["pending_withdrawal"] >= s["withdraw_threshold"] else "yellow"
+
+    info = (
+        f"[bold]Lifetime Profit:[/bold] [{profit_color}]${s['lifetime_profit']:.2f}[/{profit_color}]\n"
+        f"[bold]Lifetime Wagered:[/bold] ${s['lifetime_wagered']:.2f}\n"
+        f"[bold]ROI:[/bold] [{profit_color}]{s['lifetime_roi']:.1f}%[/{profit_color}] | "
+        f"[bold]Win Rate:[/bold] {s['win_rate']:.0f}% ({s['total_bets']} bets)\n"
+        f"\n"
+        f"[bold]💰 Pending Withdrawal:[/bold] [{pending_color}]${s['pending_withdrawal']:.2f}[/{pending_color}]"
+        f"  (50% of profits)\n"
+        f"[bold]📲 Cash App:[/bold] {s['cashapp_tag']}\n"
+        f"[bold]🎯 Threshold:[/bold] ${s['withdraw_threshold']:.2f}"
+    )
+
+    if s["pending_withdrawal"] >= s["withdraw_threshold"]:
+        info += (
+            f"\n\n[bold green]✅ READY TO WITHDRAW![/bold green] "
+            f"Send ${s['pending_withdrawal']:.2f} → {s['cashapp_tag']}"
+        )
+
+    info += (
+        f"\n[bold]Total Withdrawn:[/bold] ${s['total_withdrawn']:.2f}"
+    )
+
+    console.print(Panel(info,
+                        title=f"[bold {PRIMARY}]💰 PROFIT TRACKER[/bold {PRIMARY}]",
+                        border_style=PRIMARY))
+
+    # Daily progress
+    progress = min(s["daily_progress"], 100)
+    bar_filled = int(progress / 5)
+    bar = "█" * bar_filled + "░" * (20 - bar_filled)
+    console.print(Panel(
+        f"[bold]Today:[/bold] ${s['today_profit']:.2f} / ${s['daily_target']:.2f} "
+        f"({s['today_bets']} bets)\n"
+        f"[bold]Progress:[/bold] [{PRIMARY}]{bar}[/{PRIMARY}] {progress:.0f}%",
+        title=f"[bold {PRIMARY}]📊 DAILY TARGET[/bold {PRIMARY}]",
+        border_style="dim",
+    ))
+
+    # Daily history
+    history = tracker.daily_history(7)
+    if history:
+        table = Table(title=f"[bold {PRIMARY}]📅 DAILY HISTORY (Last 7 Days)[/bold {PRIMARY}]")
+        table.add_column("Date", style="bold")
+        table.add_column("Profit", justify="right")
+        table.add_column("Wagered", justify="right")
+        table.add_column("Bets", justify="center")
+        table.add_column("W/L", justify="center")
+        for d in history:
+            p = d.get("profit", 0)
+            table.add_row(
+                d["date"],
+                f"[{'green' if p >= 0 else 'red'}]${p:.2f}[/]",
+                f"${d.get('wagered', 0):.2f}",
+                str(d.get("bets", 0)),
+                f"{d.get('wins', 0)}W-{d.get('losses', 0)}L",
+            )
+        console.print(table)
+
+    # Recent alerts
+    alerts = s.get("recent_alerts", [])
+    if alerts:
+        console.print(f"\n[bold {PRIMARY}]🔔 RECENT ALERTS[/bold {PRIMARY}]")
+        for a in alerts[-5:]:
+            console.print(f"  {a['message']}")
+
+
+@cli.command()
+@click.argument("amount", type=float)
+def withdraw(amount):
+    """💸 Record a withdrawal (e.g., betbot withdraw 50.00)."""
+    from betbot.profit_tracker import ProfitTracker
+
+    tracker = ProfitTracker()
+    pending = tracker.lifetime["pending_withdrawal"]
+
+    if amount > pending:
+        console.print(f"[bold red]⛔ Only ${pending:.2f} available for withdrawal[/bold red]")
+        return
+
+    tracker.record_withdrawal(amount)
+    remaining = tracker.lifetime["pending_withdrawal"]
+
+    console.print(f"[bold {PRIMARY}]✓ Withdrawal recorded[/bold {PRIMARY}]")
+    console.print(f"  [bold]Amount:[/bold] ${amount:.2f}")
+    console.print(f"  [bold]Method:[/bold] Cash App → {tracker.config['cashapp_tag']}")
+    console.print(f"  [bold]Remaining:[/bold] ${remaining:.2f}")
+
+
+@cli.command("set-threshold")
+@click.argument("amount", type=float)
+def set_threshold(amount):
+    """⚙️ Set withdrawal alert threshold (e.g., betbot set-threshold 100)."""
+    from betbot.profit_tracker import ProfitTracker
+
+    tracker = ProfitTracker()
+    tracker.config["withdraw_threshold"] = amount
+    tracker.save()
+    console.print(f"[bold {PRIMARY}]✓ Withdrawal threshold set to ${amount:.2f}[/bold {PRIMARY}]")

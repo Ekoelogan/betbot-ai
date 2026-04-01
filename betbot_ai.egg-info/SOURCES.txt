@@ -8,6 +8,7 @@ betbot/daemon.py
 betbot/dashboard.py
 betbot/odds.py
 betbot/predictor.py
+betbot/profit_tracker.py
 betbot/agents/__init__.py
 betbot/agents/affiliate_agent.py
 betbot/agents/arbitrage_agent.py

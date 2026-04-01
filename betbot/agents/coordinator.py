@@ -107,6 +107,21 @@ class SwarmCoordinator:
             console.print(f"\n[bold {PRIMARY}]  ✓ Cycle #{self.cycle_count} complete — "
                           f"{len(self.bus.messages)} bus messages[/bold {PRIMARY}]\n")
 
+        # Record to profit tracker
+        try:
+            from betbot.profit_tracker import ProfitTracker
+            tracker = ProfitTracker()
+            settle = results.get("settle", {})
+            bet = results.get("bet", {})
+            tracker.record_cycle(
+                profit=settle.get("profit", 0),
+                wagered=bet.get("wagered", 0) or bet.get("placed", 0) * 25.0,
+                wins=settle.get("wins", 0),
+                losses=settle.get("losses", 0),
+            )
+        except Exception:
+            pass
+
         return results
 
     def run(self, cycles: int = 1, delay: float = 0, **kwargs):

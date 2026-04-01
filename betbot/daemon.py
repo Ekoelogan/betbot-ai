@@ -126,6 +126,25 @@ def run_daemon(cycle_interval: int = 300, max_bets: int = 3,
             content_pieces = results.get("content", {}).get("pieces", 0)
             value_bets = results.get("value", {}).get("total_value_bets", 0)
             platforms = results.get("bet", {}).get("platforms", 0)
+            settle_wins = results.get("settle", {}).get("wins", 0)
+            settle_losses = results.get("settle", {}).get("losses", 0)
+            wagered = results.get("bet", {}).get("wagered", 0)
+
+            # Record in profit tracker
+            from betbot.profit_tracker import ProfitTracker
+            tracker = ProfitTracker()
+            tracker.record_cycle(
+                profit=settle_profit,
+                wagered=wagered if wagered else bets_placed * 25.0,
+                wins=settle_wins,
+                losses=settle_losses,
+            )
+            pending = tracker.lifetime["pending_withdrawal"]
+            if pending >= tracker.config["withdraw_threshold"]:
+                log.info(
+                    "💰 WITHDRAWAL READY: $%.2f pending → %s",
+                    pending, tracker.config["cashapp_tag"],
+                )
 
             state["total_cycles"] = cycle_count
             state["last_cycle"] = datetime.now().isoformat()
