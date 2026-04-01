@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+betbot/__init__.py
+betbot/affiliate.py
+betbot/bankroll.py
+betbot/cli.py
+betbot/dashboard.py
+betbot/odds.py
+betbot/predictor.py
+betbot_ai.egg-info/PKG-INFO
+betbot_ai.egg-info/SOURCES.txt
+betbot_ai.egg-info/dependency_links.txt
+betbot_ai.egg-info/entry_points.txt
+betbot_ai.egg-info/requires.txt
+betbot_ai.egg-info/top_level.txt

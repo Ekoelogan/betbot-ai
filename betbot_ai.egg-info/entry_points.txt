@@ -1,0 +1,2 @@
+[console_scripts]
+betbot = betbot.cli:cli

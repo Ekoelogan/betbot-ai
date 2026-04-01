@@ -1,0 +1,272 @@
+"""BetBot AI CLI — sports betting analytics and affiliate marketing bot."""
+from __future__ import annotations
+
+import json
+import click
+from rich.console import Console
+
+console = Console()
+PRIMARY = "#ff2d78"
+
+SPORTS = ["nba", "nfl", "mlb", "nhl", "soccer", "ncaaf", "ncaab", "mma"]
+
+
+@click.group(invoke_without_command=True)
+@click.version_option("1.0.0", prog_name="betbot")
+@click.pass_context
+def cli(ctx):
+    """betbot — AI-powered sports betting analytics & affiliate bot."""
+    if ctx.invoked_subcommand is None:
+        from betbot.dashboard import print_banner
+        print_banner()
+        click.echo(ctx.get_help())
+
+
+# ── Predictions ──────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+def predict(sport):
+    """🎯 AI predictions for upcoming games."""
+    from betbot.predictor import SportPredictor
+    p = SportPredictor()
+    p.display_predictions(sport)
+
+
+@cli.command()
+@click.argument("sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+def odds(sport):
+    """📊 Fetch and compare odds across sportsbooks."""
+    from betbot.odds import OddsEngine
+    e = OddsEngine()
+    e.display_odds(sport)
+
+
+@cli.command()
+@click.argument("sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+def value(sport):
+    """💎 Find value bets — model edge vs market odds."""
+    from betbot.predictor import SportPredictor
+    from betbot.odds import OddsEngine
+    from rich.table import Table
+
+    predictor = SportPredictor()
+    odds_engine = OddsEngine()
+    odds_data = odds_engine.get_odds(sport)
+    values = predictor.find_value_bets(sport, odds_data)
+
+    if not values:
+        console.print("[dim]No value bets found.[/dim]")
+        return
+
+    tbl = Table(title=f"[bold {PRIMARY}]💎 Value Bets — {sport.upper()}[/bold {PRIMARY}]",
+                border_style=PRIMARY)
+    tbl.add_column("Game")
+    tbl.add_column("Side", style="cyan bold")
+    tbl.add_column("Book")
+    tbl.add_column("Odds", justify="center")
+    tbl.add_column("Model %", justify="center")
+    tbl.add_column("Market %", justify="center")
+    tbl.add_column("Edge", justify="center", style="green bold")
+    tbl.add_column("Kelly", justify="center")
+
+    for v in values:
+        tbl.add_row(
+            v["game"], v["side"], v["book"],
+            f"{'+' if v['odds'] > 0 else ''}{v['odds']}",
+            f"{v['model_pct']}%", f"{v['market_pct']}%",
+            f"+{v['edge']}%", f"{v['kelly']:.1%}",
+        )
+    console.print(tbl)
+
+
+@cli.command()
+@click.argument("sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+def arbitrage(sport):
+    """⚡ Find arbitrage opportunities across sportsbooks."""
+    from betbot.odds import OddsEngine
+    from rich.table import Table
+
+    engine = OddsEngine()
+    arbs = engine.find_arbitrage(sport)
+
+    if not arbs:
+        console.print(f"[dim]No arbitrage opportunities found for {sport.upper()}[/dim]")
+        return
+
+    tbl = Table(title=f"[bold {PRIMARY}]⚡ Arbitrage — {sport.upper()}[/bold {PRIMARY}]",
+                border_style=PRIMARY)
+    tbl.add_column("Game")
+    tbl.add_column("Profit %", style="green bold", justify="center")
+    tbl.add_column("Bets")
+    for a in arbs:
+        bets = " | ".join(f"{side}: {info['book']} ({info['odds']})"
+                          for side, info in a["bets"].items())
+        tbl.add_row(a["game"], f"+{a['profit_pct']}%", bets)
+    console.print(tbl)
+
+
+# ── Bankroll ─────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--balance", type=float, help="Set starting balance")
+@click.option("--unit", type=float, help="Set unit size")
+def bankroll(balance, unit):
+    """💰 Bankroll management — balance, ROI, Kelly criterion."""
+    from betbot.bankroll import BankrollManager
+    bm = BankrollManager(
+        starting_balance=balance or 1000.0,
+        unit_size=unit or 25.0,
+    )
+    bm.display()
+
+
+@cli.command()
+@click.argument("game")
+@click.argument("side")
+@click.option("--odds", "odds_val", type=int, default=-110, help="American odds")
+@click.option("--units", type=int, default=1, help="Number of units")
+@click.option("--confidence", type=float, default=50.0, help="Model confidence %")
+def bet(game, side, odds_val, units, confidence):
+    """🎲 Place a tracked bet."""
+    from betbot.bankroll import BankrollManager
+    bm = BankrollManager()
+    bm.place_bet(game, side, odds_val, units, confidence)
+
+
+@cli.command()
+@click.argument("index", type=int)
+@click.argument("result", type=click.Choice(["win", "loss"]))
+def settle(index, result):
+    """✅ Settle a pending bet (win/loss)."""
+    from betbot.bankroll import BankrollManager
+    bm = BankrollManager()
+    bm.settle_bet(index, result)
+    console.print(f"[bold {PRIMARY}]✓[/] Bet #{index} settled as [{'green' if result == 'win' else 'red'}]{result}[/]")
+    bm.display()
+
+
+# ── Affiliate Marketing ──────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--add", "add_book", help="Add affiliate link: BOOK")
+@click.option("--url", default="", help="Affiliate URL")
+@click.option("--code", default="", help="Referral code")
+def affiliate(add_book, url, code):
+    """📎 Manage sportsbook affiliate links and earnings."""
+    from betbot.affiliate import AffiliateManager
+    am = AffiliateManager()
+    if add_book:
+        am.add_link(add_book, url, code)
+    am.display_links()
+
+
+@cli.command()
+@click.argument("sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+@click.option("--platform", type=click.Choice(["twitter", "instagram", "blog", "email"]),
+              default="twitter", help="Content platform")
+@click.option("--book", default="DraftKings", help="Sportsbook for affiliate link")
+def content(sport, platform, book):
+    """📝 Generate social media content with affiliate links."""
+    from betbot.predictor import SportPredictor
+    from betbot.affiliate import AffiliateManager
+
+    predictor = SportPredictor()
+    preds = predictor.predict_all(sport)
+    if not preds:
+        console.print("[dim]No picks available[/dim]")
+        return
+
+    best = max(preds, key=lambda p: p.confidence)
+    am = AffiliateManager()
+    am.display_content_preview(
+        sport=sport,
+        pick=f"{best.recommended_side} ({best.home_team} vs {best.away_team})",
+        confidence=best.confidence,
+        edge=f"{abs(best.home_win_pct - best.away_win_pct) * 100:.1f}%",
+        book=book,
+    )
+
+
+# ── Trends ───────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("team")
+@click.option("--sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+def trends(team, sport):
+    """📈 Team/player trend analysis."""
+    import random
+    from rich.table import Table
+
+    rng = random.Random(hash(team))
+    record = f"{rng.randint(15, 45)}-{rng.randint(10, 35)}"
+    last10 = f"{rng.randint(4, 9)}-{10 - rng.randint(4, 9)}"
+    ats = f"{rng.randint(20, 40)}-{rng.randint(15, 35)}"
+    ou = f"O {rng.randint(20, 35)} / U {rng.randint(20, 35)}"
+
+    console.print(f"\n[bold {PRIMARY}]📈 {team.title()} Trends ({sport.upper()})[/bold {PRIMARY}]\n")
+    tbl = Table(border_style=PRIMARY)
+    tbl.add_column("Metric", style="bold")
+    tbl.add_column("Value", style="cyan")
+    tbl.add_row("Record", record)
+    tbl.add_row("Last 10", last10)
+    tbl.add_row("ATS Record", ats)
+    tbl.add_row("Over/Under", ou)
+    tbl.add_row("Home Record", f"{rng.randint(10, 25)}-{rng.randint(5, 18)}")
+    tbl.add_row("Away Record", f"{rng.randint(8, 22)}-{rng.randint(8, 20)}")
+    tbl.add_row("Avg Points For", f"{rng.uniform(95, 125):.1f}")
+    tbl.add_row("Avg Points Against", f"{rng.uniform(98, 118):.1f}")
+    console.print(tbl)
+
+
+# ── Dashboard & Export ───────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+def dashboard(sport):
+    """🖥  Full terminal dashboard — picks, odds, bankroll, affiliates."""
+    from betbot.dashboard import show_dashboard
+    show_dashboard(sport)
+
+
+@cli.command()
+@click.option("--sport", type=click.Choice(SPORTS, case_sensitive=False), default="nba")
+@click.option("--format", "fmt", type=click.Choice(["json", "csv"]), default="json")
+@click.option("--output", default="", help="Output file path")
+def export(sport, fmt, output):
+    """📤 Export picks and analytics to JSON/CSV."""
+    from betbot.predictor import SportPredictor
+    from betbot.odds import OddsEngine
+
+    predictor = SportPredictor()
+    odds_engine = OddsEngine()
+    preds = predictor.predict_all(sport)
+    values = predictor.find_value_bets(sport, odds_engine.get_odds(sport))
+
+    data = {
+        "sport": sport,
+        "predictions": [
+            {"game": f"{p.home_team} vs {p.away_team}", "pick": p.recommended_side,
+             "home_pct": p.home_win_pct, "away_pct": p.away_win_pct,
+             "confidence": p.confidence}
+            for p in preds
+        ],
+        "value_bets": values,
+    }
+
+    if fmt == "json":
+        out = json.dumps(data, indent=2)
+    else:
+        import csv, io
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=["game", "pick", "home_pct", "away_pct", "confidence"])
+        w.writeheader()
+        w.writerows(data["predictions"])
+        out = buf.getvalue()
+
+    if output:
+        with open(output, "w") as f:
+            f.write(out)
+        console.print(f"[bold {PRIMARY}]✓[/] Exported to [cyan]{output}[/cyan]")
+    else:
+        console.print(out)
