@@ -24,23 +24,57 @@ SPORTS_MAP = {
     "mma": "mma_mixed_martial_arts",
 }
 
+ALL_SPORTSBOOKS = [
+    "DraftKings", "FanDuel", "BetMGM", "Caesars", "Bet365", "Bovada",
+    "PointsBet", "BetRivers", "ESPN BET", "Hard Rock Bet", "Fanatics",
+    "WynnBET", "BetParx", "Betfred", "SuperBook", "SI Sportsbook",
+    "Unibet", "BetUS", "MyBookie", "Betway", "888sport",
+]
+
+
+def _gen_book_odds(base_home: int, base_away: int, books: list[str] | None = None) -> dict:
+    """Generate realistic odds variation across all sportsbooks."""
+    import random as _rng
+    result = {}
+    for book in (books or ALL_SPORTSBOOKS):
+        spread = _rng.randint(-5, 5)
+        result[book] = {"home": base_home + spread, "away": base_away - spread}
+    return result
+
+
+def _gen_soccer_odds(base_h: int, base_a: int, base_d: int, books: list[str] | None = None) -> dict:
+    import random as _rng
+    result = {}
+    for book in (books or ALL_SPORTSBOOKS):
+        s = _rng.randint(-8, 8)
+        result[book] = {"home": base_h + s, "away": base_a - s, "draw": base_d + _rng.randint(-10, 10)}
+    return result
+
+
 DEMO_ODDS: list[dict] = [
-    {"game": "Lakers vs Celtics", "sport": "nba",
-     "books": {"DraftKings": {"home": -150, "away": +130}, "FanDuel": {"home": -145, "away": +125},
-               "BetMGM": {"home": -155, "away": +135}, "Caesars": {"home": -148, "away": +128}}},
-    {"game": "Chiefs vs Eagles", "sport": "nfl",
-     "books": {"DraftKings": {"home": -110, "away": -110}, "FanDuel": {"home": -108, "away": -112},
-               "BetMGM": {"home": -115, "away": +105}, "Caesars": {"home": -110, "away": -110}}},
-    {"game": "Yankees vs Dodgers", "sport": "mlb",
-     "books": {"DraftKings": {"home": +120, "away": -140}, "FanDuel": {"home": +125, "away": -145},
-               "BetMGM": {"home": +115, "away": -135}, "Caesars": {"home": +122, "away": -142}}},
-    {"game": "Man City vs Arsenal", "sport": "soccer",
-     "books": {"DraftKings": {"home": -120, "away": +280, "draw": +240},
-               "FanDuel": {"home": -115, "away": +290, "draw": +235},
-               "BetMGM": {"home": -125, "away": +275, "draw": +245}}},
-    {"game": "Oilers vs Panthers", "sport": "nhl",
-     "books": {"DraftKings": {"home": +140, "away": -160}, "FanDuel": {"home": +145, "away": -165},
-               "BetMGM": {"home": +135, "away": -155}}},
+    # NBA — all books
+    {"game": "Lakers vs Celtics", "sport": "nba", "books": _gen_book_odds(-150, +130)},
+    {"game": "Warriors vs Bucks", "sport": "nba", "books": _gen_book_odds(-115, -105)},
+    {"game": "Nuggets vs 76ers", "sport": "nba", "books": _gen_book_odds(-130, +110)},
+    {"game": "Mavericks vs Knicks", "sport": "nba", "books": _gen_book_odds(+105, -125)},
+    {"game": "Heat vs Suns", "sport": "nba", "books": _gen_book_odds(-108, -112)},
+    # NFL — all books
+    {"game": "Chiefs vs Eagles", "sport": "nfl", "books": _gen_book_odds(-110, -110)},
+    {"game": "49ers vs Cowboys", "sport": "nfl", "books": _gen_book_odds(-135, +115)},
+    {"game": "Ravens vs Bills", "sport": "nfl", "books": _gen_book_odds(+125, -145)},
+    {"game": "Lions vs Packers", "sport": "nfl", "books": _gen_book_odds(-105, -115)},
+    # MLB — all books
+    {"game": "Yankees vs Dodgers", "sport": "mlb", "books": _gen_book_odds(+120, -140)},
+    {"game": "Braves vs Astros", "sport": "mlb", "books": _gen_book_odds(-125, +105)},
+    {"game": "Rangers vs Phillies", "sport": "mlb", "books": _gen_book_odds(+110, -130)},
+    # NHL — all books
+    {"game": "Oilers vs Panthers", "sport": "nhl", "books": _gen_book_odds(+140, -160)},
+    {"game": "Stars vs Avalanche", "sport": "nhl", "books": _gen_book_odds(-115, -105)},
+    {"game": "Rangers vs Hurricanes", "sport": "nhl", "books": _gen_book_odds(+100, -120)},
+    # Soccer — all books (3-way)
+    {"game": "Man City vs Arsenal", "sport": "soccer", "books": _gen_soccer_odds(-120, +280, +240)},
+    {"game": "Liverpool vs Chelsea", "sport": "soccer", "books": _gen_soccer_odds(-140, +320, +260)},
+    {"game": "Real Madrid vs Barcelona", "sport": "soccer", "books": _gen_soccer_odds(-110, +250, +230)},
 ]
 
 

@@ -1,6 +1,7 @@
 """Swarm Coordinator — orchestrates 12 agents in cooperative/competitive cycles."""
 from __future__ import annotations
 
+import os
 import time
 from rich.console import Console
 from rich.panel import Panel
@@ -70,6 +71,10 @@ class SwarmCoordinator:
         # Give dashboard reference to all agents
         self.agents["dashboard"].set_agents(list(self.agents.values()))
 
+    @property
+    def _quiet(self) -> bool:
+        return os.environ.get("BETBOT_DAEMON") == "1"
+
     def run_cycle(self, context: dict | None = None, show_dashboard: bool = True) -> dict:
         """Run one full swarm cycle — all 12 agents in order."""
         self.cycle_count += 1
@@ -77,12 +82,13 @@ class SwarmCoordinator:
         ctx.setdefault("sports", ["nba", "nfl", "mlb", "nhl", "soccer"])
         ctx.setdefault("auto_settle", True)
         ctx.setdefault("auto_export", True)
-        ctx.setdefault("show_dashboard", show_dashboard)
+        ctx.setdefault("show_dashboard", show_dashboard and not self._quiet)
         ctx.setdefault("max_bets_per_cycle", 3)
 
-        console.print(f"\n[bold {PRIMARY}]{'━' * 70}[/bold {PRIMARY}]")
-        console.print(f"[bold {PRIMARY}]  🐝 SWARM CYCLE #{self.cycle_count}[/bold {PRIMARY}]")
-        console.print(f"[bold {PRIMARY}]{'━' * 70}[/bold {PRIMARY}]\n")
+        if not self._quiet:
+            console.print(f"\n[bold {PRIMARY}]{'━' * 70}[/bold {PRIMARY}]")
+            console.print(f"[bold {PRIMARY}]  🐝 SWARM CYCLE #{self.cycle_count}[/bold {PRIMARY}]")
+            console.print(f"[bold {PRIMARY}]{'━' * 70}[/bold {PRIMARY}]\n")
 
         results = {}
         for agent_key in AGENT_ORDER:
@@ -93,11 +99,13 @@ class SwarmCoordinator:
                 result = agent.run_cycle(ctx)
                 results[agent_key] = result
             except Exception as e:
-                console.print(f"  [red]✗ {agent.emoji} {agent.name} FAILED: {e}[/red]")
+                if not self._quiet:
+                    console.print(f"  [red]✗ {agent.emoji} {agent.name} FAILED: {e}[/red]")
                 results[agent_key] = {"error": str(e)}
 
-        console.print(f"\n[bold {PRIMARY}]  ✓ Cycle #{self.cycle_count} complete — "
-                      f"{len(self.bus.messages)} bus messages[/bold {PRIMARY}]\n")
+        if not self._quiet:
+            console.print(f"\n[bold {PRIMARY}]  ✓ Cycle #{self.cycle_count} complete — "
+                          f"{len(self.bus.messages)} bus messages[/bold {PRIMARY}]\n")
 
         return results
 

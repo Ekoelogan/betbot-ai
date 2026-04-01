@@ -4,6 +4,7 @@ betbot/__init__.py
 betbot/affiliate.py
 betbot/bankroll.py
 betbot/cli.py
+betbot/daemon.py
 betbot/dashboard.py
 betbot/odds.py
 betbot/predictor.py

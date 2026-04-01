@@ -314,3 +314,134 @@ def swarm_reset():
     coord = SwarmCoordinator()
     coord.reset()
     console.print(f"[bold {PRIMARY}]✓[/] Swarm leaderboard and bus reset")
+
+
+# ── 24/7 Autonomous Daemon ───────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--interval", type=int, default=300, help="Seconds between cycles (default: 300 = 5min)")
+@click.option("--max-bets", type=int, default=3, help="Max bets per cycle")
+@click.option("--sports", default="nba,nfl,mlb,nhl,soccer", help="Comma-separated sports")
+def start(interval, max_bets, sports):
+    """🚀 Start 24/7 autonomous swarm daemon (background)."""
+    from betbot.daemon import is_running, run_daemon, PID_FILE, LOG_FILE
+    import subprocess, sys
+
+    if is_running():
+        console.print(f"[bold red]⛔ Daemon already running[/bold red] — use 'betbot status' to check")
+        return
+
+    # Launch as detached subprocess
+    cmd = [
+        sys.executable, "-c",
+        f"from betbot.daemon import run_daemon; "
+        f"run_daemon(cycle_interval={interval}, max_bets={max_bets}, sports='{sports}')"
+    ]
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    # Wait a moment for PID file
+    import time
+    time.sleep(2)
+
+    if is_running():
+        console.print(f"[bold {PRIMARY}]🚀 BetBot Daemon STARTED[/bold {PRIMARY}]")
+        console.print(f"  [bold]PID:[/bold] {proc.pid}")
+        console.print(f"  [bold]Interval:[/bold] {interval}s ({interval // 60}min)")
+        console.print(f"  [bold]Sports:[/bold] {sports}")
+        console.print(f"  [bold]Max bets/cycle:[/bold] {max_bets}")
+        console.print(f"  [bold]Log:[/bold] {LOG_FILE}")
+        console.print(f"\n  [dim]Use 'betbot status' to monitor | 'betbot stop' to stop[/dim]")
+    else:
+        console.print(f"[bold red]✗ Failed to start daemon[/bold red]")
+
+
+@cli.command()
+def stop():
+    """🛑 Stop the 24/7 autonomous daemon."""
+    import os, signal
+    from betbot.daemon import is_running, get_pid, PID_FILE
+
+    if not is_running():
+        console.print("[dim]Daemon is not running[/dim]")
+        return
+
+    pid = get_pid()
+    if pid:
+        os.kill(pid, signal.SIGTERM)
+        import time
+        time.sleep(2)
+
+        if not is_running():
+            console.print(f"[bold {PRIMARY}]✓ Daemon stopped[/bold {PRIMARY}] (PID {pid})")
+        else:
+            os.kill(pid, signal.SIGKILL)
+            PID_FILE.unlink(missing_ok=True)
+            console.print(f"[bold {PRIMARY}]✓ Daemon force-killed[/bold {PRIMARY}] (PID {pid})")
+
+
+@cli.command()
+def status():
+    """📡 Show daemon status, recent cycles, and live stats."""
+    from betbot.daemon import daemon_status
+    from rich.panel import Panel
+
+    s = daemon_status()
+    running = s.get("is_running", False)
+    status_str = "[bold green]● RUNNING[/bold green]" if running else "[bold red]● STOPPED[/bold red]"
+
+    info = (
+        f"[bold]Status:[/bold] {status_str}\n"
+        f"[bold]PID:[/bold] {s.get('pid', '—')}\n"
+        f"[bold]Started:[/bold] {s.get('started', '—')}\n"
+        f"[bold]Interval:[/bold] {s.get('cycle_interval', '—')}s\n"
+        f"[bold]Sports:[/bold] {', '.join(s.get('sports', []))}\n"
+        f"[bold]Total Cycles:[/bold] {s.get('total_cycles', 0)}\n"
+        f"[bold]Last Cycle:[/bold] {s.get('last_cycle', '—')}\n"
+        f"[bold]Total Bets:[/bold] {s.get('total_bets_placed', 0)}\n"
+        f"[bold]Total P&L:[/bold] [{'green' if s.get('total_profit', 0) >= 0 else 'red'}]"
+        f"${s.get('total_profit', 0):.2f}[/]"
+    )
+
+    last = s.get("last_results", {})
+    if last:
+        info += (
+            f"\n\n[bold]Last Cycle:[/bold]\n"
+            f"  Bets: {last.get('bets', 0)} | Platforms: {last.get('platforms', 0)} | "
+            f"P&L: ${last.get('profit', 0):.2f}\n"
+            f"  Content: {last.get('content', 0)} | Value Bets: {last.get('value_bets', 0)}"
+        )
+
+    console.print(Panel(info,
+                        title=f"[bold {PRIMARY}]📡 BETBOT DAEMON[/bold {PRIMARY}]",
+                        border_style=PRIMARY))
+
+    # Show recent logs
+    tail = s.get("log_tail", "")
+    if tail:
+        console.print(Panel(tail,
+                            title=f"[bold {PRIMARY}]📋 RECENT LOG[/bold {PRIMARY}]",
+                            border_style="dim"))
+
+
+@cli.command()
+def logs():
+    """📋 Tail the daemon log file."""
+    from betbot.daemon import LOG_FILE
+
+    if not LOG_FILE.exists():
+        console.print("[dim]No log file yet — start daemon with 'betbot start'[/dim]")
+        return
+
+    lines = LOG_FILE.read_text().strip().split("\n")
+    for line in lines[-50:]:
+        if "ERROR" in line or "FAILED" in line:
+            console.print(f"[red]{line}[/red]")
+        elif "Cycle #" in line and "done" in line:
+            console.print(f"[green]{line}[/green]")
+        elif "started" in line.lower() or "stopped" in line.lower():
+            console.print(f"[bold {PRIMARY}]{line}[/bold {PRIMARY}]")
+        else:
+            console.print(f"[dim]{line}[/dim]")
